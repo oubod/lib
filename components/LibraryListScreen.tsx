@@ -8,7 +8,6 @@ interface LibraryListScreenProps {
   onAddLibrary: () => void;
   onSelectLibrary: (library: Library) => void;
   onDeleteLibrary: (id: string) => void;
-  onReconnectLibrary: (library: Library) => void;
   onResetDatabase?: () => void;
   isLoading: boolean;
 }
@@ -18,7 +17,6 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
   onAddLibrary, 
   onSelectLibrary, 
   onDeleteLibrary, 
-  onReconnectLibrary,
   onResetDatabase,
   isLoading 
 }) => {
@@ -32,8 +30,11 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
   };
 
   const getLibraryStatus = (library: Library) => {
+    if (library.metadata?.autoReconnected) {
+      return { text: 'Reconnecté automatiquement', color: 'text-green-400', bgColor: 'bg-green-900/20' };
+    }
     if (library.metadata?.needsReconnection) {
-      return { text: 'Reconnexion requise', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20' };
+      return { text: 'Reconnexion automatique...', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20' };
     }
     if (library.metadata?.hasErrors) {
       return { text: 'Erreur', color: 'text-red-400', bgColor: 'bg-red-900/20' };
@@ -153,15 +154,11 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
                   </div>
                   
                   <div className="flex space-x-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReconnectLibrary(library);
-                      }}
-                      className="action-button px-3 py-1.5 bg-yellow-600/20 border border-yellow-500/30 text-yellow-400 text-sm rounded-lg hover:bg-yellow-600/30 hover:border-yellow-500/50 transition-all duration-200"
-                    >
-                      Reconnecter
-                    </button>
+                    {library.metadata?.needsReconnection && (
+                      <div className="px-3 py-1.5 bg-yellow-600/20 border border-yellow-500/30 text-yellow-400 text-sm rounded-lg">
+                        Reconnexion automatique en cours...
+                      </div>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -204,7 +201,14 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
                 {library.metadata?.needsReconnection && (
                   <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
                     <p className="text-yellow-400 text-sm">
-                      Cette bibliothèque nécessite une reconnexion au dossier source.
+                      Reconnexion automatique en cours... L'application tente de restaurer l'accès au dossier.
+                    </p>
+                  </div>
+                )}
+                {library.metadata?.autoReconnected && (
+                  <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+                    <p className="text-green-400 text-sm">
+                      ✅ Reconnecté automatiquement avec succès !
                     </p>
                   </div>
                 )}

@@ -46,6 +46,9 @@ export interface Library {
     backupRestored?: string;
     restoreAttemptCount?: number;
     reconnectionCount?: number;
+    // Automatic reconnection properties
+    autoReconnected?: boolean;
+    lastAutoReconnection?: string;
   };
 }
 

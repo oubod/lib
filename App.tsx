@@ -165,39 +165,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleReconnectLibrary = async (library: Library) => {
-    try {
-      setIsLoading(true);
-      setLoadingMessage('Reconnexion de la bibliothèque...');
-      
-      const reconnectedLibrary = await fileHandleManager.reconnectLibrary(library);
-      
-      if (reconnectedLibrary) {
-        await saveLibrary(reconnectedLibrary);
-        setLibraries(prev => prev.map(lib => 
-          lib.id === library.id ? reconnectedLibrary : lib
-        ));
-        
-        if (selectedLibrary?.id === library.id) {
-          setSelectedLibrary(reconnectedLibrary);
-        }
-        
-        // Re-check persistence after reconnecting
-        checkPersistence();
-        
-        // Show success message
-        alert(`Bibliothèque "${library.name}" reconnectée avec succès !`);
-      }
-    } catch (error) {
-      console.error("Erreur lors de la reconnexion:", error);
-      if ((error as DOMException).name !== 'AbortError') {
-        alert(`Erreur lors de la reconnexion: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleDeleteLibrary = async (id: string) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cette bibliothèque ?")) {
       try {
@@ -283,7 +250,6 @@ const App: React.FC = () => {
             onAddLibrary={handleAddLibrary}
             onSelectLibrary={(lib) => { setSelectedLibrary(lib); setCurrentView(AppView.LibraryView); }}
             onDeleteLibrary={handleDeleteLibrary}
-            onReconnectLibrary={handleReconnectLibrary}
             onResetDatabase={handleResetDatabase}
             isLoading={isLoading}
           />

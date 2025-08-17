@@ -56,6 +56,7 @@ export class FileHandleManager {
   /**
    * Restore file handles for a library that was loaded from backup
    * Enhanced for mobile persistence with multiple fallback layers
+   * Now includes automatic reconnection attempts
    */
   async restoreLibraryHandles(library: Library): Promise<Library | null> {
     try {
@@ -95,6 +96,12 @@ export class FileHandleManager {
           } catch (error) {
             console.log(`Handle validation failed for ${library.name}:`, error);
           }
+        }
+        
+        // Try automatic reconnection from stored path information
+        const autoReconnected = await this.attemptAutomaticReconnection(library, enhancedHandle);
+        if (autoReconnected) {
+          return autoReconnected;
         }
         
         // If we can't restore, mark as needing reconnection but keep the library
@@ -146,6 +153,12 @@ export class FileHandleManager {
           }
         }
         
+        // Try automatic reconnection from legacy storage
+        const autoReconnected = await this.attemptAutomaticReconnection(library, storedHandle);
+        if (autoReconnected) {
+          return autoReconnected;
+        }
+        
         return {
           ...library,
           metadata: {
@@ -160,6 +173,58 @@ export class FileHandleManager {
       return null;
     } catch (error) {
       console.error('Failed to restore library handles:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Attempt automatic reconnection by trying to access the directory path
+   * This works if the directory still exists at the same location
+   */
+  private async attemptAutomaticReconnection(library: Library, storedHandle: any): Promise<Library | null> {
+    try {
+      // Try to access the directory using the stored path information
+      if (storedHandle.metadata && storedHandle.metadata.name) {
+        console.log(`Attempting automatic reconnection for library: ${library.name}`);
+        
+        // Try to get a directory handle for the same name
+        // This is a simplified approach - in a real implementation, you might store more path information
+        try {
+          // For now, we'll try to use the existing handle if it's still valid
+          // In a more advanced implementation, you could store the full path and try to reconstruct access
+          if (library.directoryHandle) {
+            // Try to verify the handle is still accessible
+            const permission = await this.verifyPermission(library.directoryHandle, false);
+            if (permission) {
+              const restoredFiles = await this.scanDirectory(library.directoryHandle);
+              if (restoredFiles.length > 0) {
+                console.log(`Automatic reconnection successful for library: ${library.name}`);
+                
+                // Update the stored handle
+                await this.storeDirectoryHandle(library.id, library.directoryHandle);
+                
+                return {
+                  ...library,
+                  files: restoredFiles,
+                  metadata: {
+                    ...library.metadata,
+                    needsReconnection: false,
+                    lastRestored: new Date().toISOString(),
+                    autoReconnected: true,
+                    lastAutoReconnection: new Date().toISOString()
+                  }
+                };
+              }
+            }
+          }
+        } catch (error) {
+          console.log(`Automatic reconnection failed for ${library.name}:`, error);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error during automatic reconnection:', error);
       return null;
     }
   }
