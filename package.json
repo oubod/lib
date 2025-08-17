@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npx tsc && vite build",
-    "preview": "vite preview"
+    "build": "npm run build:check && npm run build:vite",
+    "build:check": "npx tsc --noEmit",
+    "build:vite": "vite build",
+    "preview": "vite preview",
+    "postinstall": "echo 'TypeScript version:' && npx tsc --version"
   },
   "dependencies": {
     "@google/genai": "^1.14.0",
