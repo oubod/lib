@@ -8,11 +8,12 @@ if (!API_KEY) {
   console.warn("La clé API Gemini n'est pas configurée. Les fonctionnalités IA seront désactivées.");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+// Only create AI instance if API key is available
+const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
 
 export async function getAiInsight(text: string, fileName: string): Promise<string> {
-  if (!API_KEY) {
-    return "Fonctionnalité IA non disponible. Veuillez configurer votre clé API Gemini.";
+  if (!API_KEY || !ai) {
+    return "Fonctionnalité IA non disponible. Veuillez configurer votre clé API Gemini dans les variables d'environnement Netlify.";
   }
 
   try {
@@ -27,6 +28,6 @@ export async function getAiInsight(text: string, fileName: string): Promise<stri
     return response.text || 'Aucune réponse reçue de l\'IA';
   } catch (error) {
     console.error("Erreur lors de l'appel à l'API Gemini :", error);
-    return "Désolé, une erreur est survenue lors de la communication avec l'IA. Veuillez réessayer.";
+    return "Désolé, une erreur s'est produite lors de la communication avec l'IA. Veuillez réessayer.";
   }
 }

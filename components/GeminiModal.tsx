@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getAiInsight } from '../services/geminiService';
 import { CloseIcon, SparklesIcon } from './icons';
 import Spinner from './Spinner';
@@ -14,6 +14,23 @@ const GeminiModal: React.FC<GeminiModalProps> = ({ isOpen, onClose, fileName }) 
   const [aiResponse, setAiResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hasApiKey, setHasApiKey] = useState(true);
+
+  useEffect(() => {
+    // Check if API key is available
+    const checkApiKey = async () => {
+      try {
+        const testResponse = await getAiInsight('test', 'test');
+        setHasApiKey(!testResponse.includes('non disponible'));
+      } catch (err) {
+        setHasApiKey(false);
+      }
+    };
+    
+    if (isOpen) {
+      checkApiKey();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -41,6 +58,43 @@ const GeminiModal: React.FC<GeminiModalProps> = ({ isOpen, onClose, fileName }) 
     setError('');
     onClose();
   };
+
+  if (!hasApiKey) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6">
+          <header className="flex items-center justify-between mb-4 border-b border-gray-700 pb-4">
+            <div className="flex items-center">
+              <SparklesIcon className="w-6 h-6 text-purple-400 mr-3" />
+              <h2 className="text-xl font-bold text-white">Configuration requise</h2>
+            </div>
+            <button onClick={handleClose} className="p-2 text-gray-400 rounded-full hover:bg-gray-700">
+              <CloseIcon className="w-6 h-6" />
+            </button>
+          </header>
+          
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <SparklesIcon className="w-8 h-8 text-yellow-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Clé API Gemini manquante</h3>
+            <p className="text-gray-300 mb-4">
+              Pour utiliser les fonctionnalités d'IA, vous devez configurer votre clé API Gemini.
+            </p>
+            <div className="bg-gray-900/50 rounded-lg p-4 text-left text-sm text-gray-300">
+              <p className="mb-2"><strong>Étapes de configuration :</strong></p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Obtenez votre clé API sur <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Google AI Studio</a></li>
+                <li>Dans Netlify, allez dans Site settings &gt; Environment variables</li>
+                <li>Ajoutez : <code className="bg-gray-800 px-2 py-1 rounded">GEMINI_API_KEY</code> = votre_clé_api</li>
+                <li>Redéployez votre site</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
