@@ -262,7 +262,7 @@ export async function getLibraries(): Promise<Library[]> {
             lib.lastAccessed = new Date().toISOString();
           });
           resolve(result);
-        });
+        };
         
         request.onerror = () => {
           logError('retrieve', request.error);
@@ -594,7 +594,7 @@ export function exportAllData(): string {
     return JSON.stringify(exportData, null, 2);
   } catch (error) {
     console.error('Failed to export data:', error);
-    return JSON.stringify({ error: 'Export failed', message: error.message });
+    return JSON.stringify({ error: 'Export failed', message: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -617,6 +617,6 @@ export function importFromBackup(backupData: string): { success: boolean; messag
     
     return { success: true, message: 'Data imported successfully' };
   } catch (error) {
-    return { success: false, message: `Import failed: ${error.message}` };
+    return { success: false, message: `Import failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

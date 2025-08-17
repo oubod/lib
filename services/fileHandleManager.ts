@@ -136,7 +136,7 @@ export class FileHandleManager {
                     ...library.metadata,
                     needsReconnection: false,
                     lastRestored: new Date().toISOString(),
-                    restoredFromLegacyStorage: true
+                    restoredFromBackup: true
                   }
                 };
               }
