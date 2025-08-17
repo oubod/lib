@@ -28,6 +28,24 @@ export interface Library {
     lastRestored?: string;
     lastAttemptedRestore?: string;
     lastError?: string;
+    // Enhanced persistence properties
+    persistence?: {
+      lastSaved?: string;
+      saveCount?: number;
+      backupCreated?: boolean;
+      localStorageBackup?: boolean;
+      indexedDBBackup?: boolean;
+      created?: string;
+      storageMethod?: string;
+      backupLayers?: string[];
+    };
+    // Enhanced restoration properties
+    restoredFromBackup?: boolean;
+    restoredFromEnhancedStorage?: boolean;
+    restoredFromLegacyBackup?: boolean;
+    backupRestored?: string;
+    restoreAttemptCount?: number;
+    reconnectionCount?: number;
   };
 }
 

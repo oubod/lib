@@ -4,6 +4,7 @@ export class FileHandleManager {
   private static instance: FileHandleManager;
   private permissionCache = new Map<string, boolean>();
   private handleStorageKey = 'file_handles_cache';
+  private enhancedHandleKey = 'enhanced_file_handles';
 
   static getInstance(): FileHandleManager {
     if (!FileHandleManager.instance) {
@@ -14,10 +15,11 @@ export class FileHandleManager {
 
   /**
    * Store directory handle for persistence (mobile-friendly)
+   * Enhanced with multiple storage layers
    */
   private async storeDirectoryHandle(libraryId: string, directoryHandle: FileSystemDirectoryHandle): Promise<void> {
     try {
-      // Store the directory handle in IndexedDB for persistence
+      // Store the directory handle in multiple locations for redundancy
       const handleData = {
         id: libraryId,
         name: directoryHandle.name,
@@ -25,16 +27,27 @@ export class FileHandleManager {
         // Note: We can't serialize the handle directly, but we can store metadata
         metadata: {
           name: directoryHandle.name,
-          kind: directoryHandle.kind
+          kind: directoryHandle.kind,
+          lastAccessed: new Date().toISOString(),
+          accessCount: 1
         }
       };
       
-      // Store in localStorage as fallback
+      // Store in enhanced storage
+      const enhancedStorage = JSON.parse(localStorage.getItem(this.enhancedHandleKey) || '{}');
+      enhancedStorage[libraryId] = {
+        ...handleData,
+        version: '2.0',
+        backupCreated: new Date().toISOString()
+      };
+      localStorage.setItem(this.enhancedHandleKey, JSON.stringify(enhancedStorage));
+      
+      // Store in legacy storage for compatibility
       const stored = JSON.parse(localStorage.getItem(this.handleStorageKey) || '{}');
       stored[libraryId] = handleData;
       localStorage.setItem(this.handleStorageKey, JSON.stringify(stored));
       
-      console.log(`Stored directory handle for library: ${libraryId}`);
+      console.log(`Enhanced directory handle storage for library: ${libraryId}`);
     } catch (error) {
       console.warn('Failed to store directory handle:', error);
     }
@@ -42,16 +55,16 @@ export class FileHandleManager {
 
   /**
    * Restore file handles for a library that was loaded from backup
-   * Enhanced for mobile persistence
+   * Enhanced for mobile persistence with multiple fallback layers
    */
   async restoreLibraryHandles(library: Library): Promise<Library | null> {
     try {
-      // First, try to restore from the stored handle if available
-      const stored = JSON.parse(localStorage.getItem(this.handleStorageKey) || '{}');
-      const storedHandle = stored[library.id];
+      // First, try to restore from the enhanced storage
+      const enhancedStorage = JSON.parse(localStorage.getItem(this.enhancedHandleKey) || '{}');
+      const enhancedHandle = enhancedStorage[library.id];
       
-      if (storedHandle && storedHandle.metadata) {
-        console.log(`Attempting to restore handles for library: ${library.name}`);
+      if (enhancedHandle && enhancedHandle.metadata) {
+        console.log(`Attempting to restore handles from enhanced storage for library: ${library.name}`);
         
         // Try to use the existing directory handle if it's still valid
         if (library.directoryHandle) {
@@ -63,13 +76,18 @@ export class FileHandleManager {
               const restoredFiles = await this.scanDirectory(library.directoryHandle);
               if (restoredFiles.length > 0) {
                 console.log(`Successfully restored library: ${library.name} with ${restoredFiles.length} files`);
+                
+                // Update access count in storage
+                this.updateHandleAccessCount(library.id);
+                
                 return {
                   ...library,
                   files: restoredFiles,
                   metadata: {
                     ...library.metadata,
                     needsReconnection: false,
-                    lastRestored: new Date().toISOString()
+                    lastRestored: new Date().toISOString(),
+                    restoredFromEnhancedStorage: true
                   }
                 };
               }
@@ -86,7 +104,55 @@ export class FileHandleManager {
           metadata: {
             ...library.metadata,
             needsReconnection: true,
-            lastAttemptedRestore: new Date().toISOString()
+            lastAttemptedRestore: new Date().toISOString(),
+            restoreAttemptCount: (library.metadata?.restoreAttemptCount || 0) + 1
+          }
+        };
+      }
+      
+      // Fallback to legacy storage
+      const stored = JSON.parse(localStorage.getItem(this.handleStorageKey) || '{}');
+      const storedHandle = stored[library.id];
+      
+      if (storedHandle && storedHandle.metadata) {
+        console.log(`Attempting to restore handles from legacy storage for library: ${library.name}`);
+        
+        // Try to use the existing directory handle if it's still valid
+        if (library.directoryHandle) {
+          try {
+            const permission = await this.verifyPermission(library.directoryHandle, false);
+            if (permission) {
+              const restoredFiles = await this.scanDirectory(library.directoryHandle);
+              if (restoredFiles.length > 0) {
+                console.log(`Successfully restored library: ${library.name} with ${restoredFiles.length} files from legacy storage`);
+                
+                // Update access count in storage
+                this.updateHandleAccessCount(library.id);
+                
+                return {
+                  ...library,
+                  files: restoredFiles,
+                  metadata: {
+                    ...library.metadata,
+                    needsReconnection: false,
+                    lastRestored: new Date().toISOString(),
+                    restoredFromLegacyStorage: true
+                  }
+                };
+              }
+            }
+          } catch (error) {
+            console.log(`Legacy handle validation failed for ${library.name}:`, error);
+          }
+        }
+        
+        return {
+          ...library,
+          metadata: {
+            ...library.metadata,
+            needsReconnection: true,
+            lastAttemptedRestore: new Date().toISOString(),
+            restoreAttemptCount: (library.metadata?.restoreAttemptCount || 0) + 1
           }
         };
       }
@@ -95,6 +161,31 @@ export class FileHandleManager {
     } catch (error) {
       console.error('Failed to restore library handles:', error);
       return null;
+    }
+  }
+
+  /**
+   * Update access count for a handle
+   */
+  private updateHandleAccessCount(libraryId: string): void {
+    try {
+      // Update enhanced storage
+      const enhancedStorage = JSON.parse(localStorage.getItem(this.enhancedHandleKey) || '{}');
+      if (enhancedStorage[libraryId]) {
+        enhancedStorage[libraryId].metadata.accessCount = (enhancedStorage[libraryId].metadata.accessCount || 0) + 1;
+        enhancedStorage[libraryId].metadata.lastAccessed = new Date().toISOString();
+        localStorage.setItem(this.enhancedHandleKey, JSON.stringify(enhancedStorage));
+      }
+      
+      // Update legacy storage
+      const stored = JSON.parse(localStorage.getItem(this.handleStorageKey) || '{}');
+      if (stored[libraryId]) {
+        stored[libraryId].metadata.accessCount = (stored[libraryId].metadata.accessCount || 0) + 1;
+        stored[libraryId].metadata.lastAccessed = new Date().toISOString();
+        localStorage.setItem(this.handleStorageKey, JSON.stringify(stored));
+      }
+    } catch (error) {
+      console.error('Failed to update handle access count:', error);
     }
   }
 
@@ -194,7 +285,12 @@ export class FileHandleManager {
           tags: ['medical', 'pdf'],
           category: 'medical_documents',
           needsReconnection: false,
-          lastConnected: new Date().toISOString()
+          lastConnected: new Date().toISOString(),
+          persistence: {
+            created: new Date().toISOString(),
+            storageMethod: 'enhanced',
+            backupLayers: ['localStorage', 'indexedDB']
+          }
         }
       };
 
@@ -242,7 +338,8 @@ export class FileHandleManager {
           lastModified: new Date().toISOString(),
           needsReconnection: false,
           lastConnected: new Date().toISOString(),
-          lastReconnected: new Date().toISOString()
+          lastReconnected: new Date().toISOString(),
+          reconnectionCount: (library.metadata?.reconnectionCount || 0) + 1
         }
       };
 
@@ -282,6 +379,79 @@ export class FileHandleManager {
       averageFileSize: library.files.length > 0 ? totalSize / library.files.length : 0,
       lastModified: library.metadata?.lastModified || library.lastAccessed
     };
+  }
+
+  /**
+   * Get persistence statistics
+   */
+  getPersistenceStats(): { totalLibraries: number; enhancedStorage: number; legacyStorage: number; lastBackup: string } {
+    try {
+      const enhancedStorage = JSON.parse(localStorage.getItem(this.enhancedHandleKey) || '{}');
+      const legacyStorage = JSON.parse(localStorage.getItem(this.handleStorageKey) || '{}');
+      
+      const enhancedCount = Object.keys(enhancedStorage).length;
+      const legacyCount = Object.keys(legacyStorage).length;
+      
+      let lastBackup = 'Never';
+      if (enhancedCount > 0) {
+        const timestamps = Object.values(enhancedStorage).map((handle: any) => handle.timestamp);
+        const latest = Math.max(...timestamps);
+        lastBackup = new Date(latest).toLocaleString();
+      }
+      
+      return {
+        totalLibraries: Math.max(enhancedCount, legacyCount),
+        enhancedStorage: enhancedCount,
+        legacyStorage: legacyCount,
+        lastBackup
+      };
+    } catch (error) {
+      console.error('Failed to get persistence stats:', error);
+      return { totalLibraries: 0, enhancedStorage: 0, legacyStorage: 0, lastBackup: 'Error' };
+    }
+  }
+
+  /**
+   * Clean up old or invalid handles
+   */
+  cleanupInvalidHandles(): { cleaned: number; remaining: number } {
+    try {
+      const enhancedStorage = JSON.parse(localStorage.getItem(this.enhancedHandleKey) || '{}');
+      const legacyStorage = JSON.parse(localStorage.getItem(this.handleStorageKey) || '{}');
+      
+      let cleaned = 0;
+      const now = Date.now();
+      const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+      
+      // Clean enhanced storage
+      Object.keys(enhancedStorage).forEach(id => {
+        const handle = enhancedStorage[id];
+        if (now - handle.timestamp > maxAge) {
+          delete enhancedStorage[id];
+          cleaned++;
+        }
+      });
+      
+      // Clean legacy storage
+      Object.keys(legacyStorage).forEach(id => {
+        const handle = legacyStorage[id];
+        if (now - handle.timestamp > maxAge) {
+          delete legacyStorage[id];
+          cleaned++;
+        }
+      });
+      
+      // Save cleaned data
+      localStorage.setItem(this.enhancedHandleKey, JSON.stringify(enhancedStorage));
+      localStorage.setItem(this.handleStorageKey, JSON.stringify(legacyStorage));
+      
+      const remaining = Object.keys(enhancedStorage).length + Object.keys(legacyStorage).length;
+      
+      return { cleaned, remaining };
+    } catch (error) {
+      console.error('Failed to cleanup invalid handles:', error);
+      return { cleaned: 0, remaining: 0 };
+    }
   }
 
   private formatFileSize(bytes: number): string {

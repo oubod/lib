@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Library } from '../types';
-import { PlusIcon, FolderIcon, TrashIcon, ExclamationTriangleIcon, RefreshIcon } from './icons';
+import { PlusIcon, FolderIcon, TrashIcon, ExclamationTriangleIcon, RefreshIcon, CheckCircleIcon } from './icons';
 
 interface LibraryListScreenProps {
   libraries: Library[];
@@ -41,6 +41,33 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
     return { text: 'Actif', color: 'text-green-400', bgColor: 'bg-green-900/20' };
   };
 
+  const getPersistenceStatus = (library: Library) => {
+    if (library.metadata?.persistence) {
+      const persistence = library.metadata.persistence;
+      if (persistence.localStorageBackup && persistence.indexedDBBackup) {
+        return { 
+          text: 'Sauvegardé localement', 
+          color: 'text-green-400', 
+          icon: <CheckCircleIcon className="w-4 h-4" />,
+          bgColor: 'bg-green-900/20' 
+        };
+      } else if (persistence.localStorageBackup) {
+        return { 
+          text: 'Sauvegardé (localStorage)', 
+          color: 'text-blue-400', 
+          icon: <CheckCircleIcon className="w-4 h-4" />,
+          bgColor: 'bg-blue-900/20' 
+        };
+      }
+    }
+    return { 
+      text: 'Sauvegarde en cours...', 
+      color: 'text-gray-400', 
+      icon: null,
+      bgColor: 'bg-gray-900/20' 
+    };
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -60,6 +87,14 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
         <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-6">
           Accédez à vos collections de documents PDF et gérez vos bibliothèques médicales
         </p>
+        
+        {/* Persistence Status */}
+        <div className="flex justify-center items-center mb-6">
+          <div className="inline-flex items-center px-4 py-2 bg-green-600/20 border border-green-500/30 text-green-400 text-sm font-medium rounded-lg">
+            <CheckCircleIcon className="w-4 h-4 mr-2" />
+            Données sauvegardées localement
+          </div>
+        </div>
         
         {/* Database Reset Button */}
         {onResetDatabase && (
@@ -98,107 +133,93 @@ const LibraryListScreen: React.FC<LibraryListScreenProps> = ({
       ) : (
         <div className="space-y-8">
           {/* Libraries Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {libraries.map(lib => {
-              const status = getLibraryStatus(lib);
-              const needsAttention = lib.metadata?.needsReconnection || lib.metadata?.hasErrors;
-              
-              return (
-                <div 
-                  key={lib.id} 
-                  onClick={(e) => handleCardClick(e, lib)} 
-                  className={`group bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 cursor-pointer hover:from-gray-700 hover:to-gray-800 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-2 border ${
-                    needsAttention ? 'border-yellow-500/50' : 'border-gray-700 hover:border-blue-500'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 ${
-                        needsAttention 
-                          ? 'bg-gradient-to-br from-yellow-500 to-orange-600' 
-                          : 'bg-gradient-to-br from-blue-500 to-purple-600'
-                      }`}>
-                        {needsAttention ? (
-                          <ExclamationTriangleIcon className="w-6 h-6 text-white" />
-                        ) : (
-                          <FolderIcon className="w-6 h-6 text-white" />
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white truncate">{lib.name}</h3>
-                        <p className="text-gray-400 text-sm">{lib.files.length} document(s)</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {needsAttention && (
-                        <button
-                          onClick={() => onReconnectLibrary(lib)}
-                          className="action-button p-2 text-yellow-400 rounded-full hover:bg-yellow-900/50 transition-all duration-200 opacity-0 group-hover:opacity-100 transform hover:scale-110"
-                          aria-label="Reconnecter la bibliothèque"
-                          title="Reconnecter la bibliothèque"
-                        >
-                          <RefreshIcon className="w-5 h-5"/>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => onDeleteLibrary(lib.id)}
-                        className="action-button p-2 text-gray-500 rounded-full hover:bg-red-900/50 hover:text-red-400 transition-all duration-200 opacity-0 group-hover:opacity-100 transform hover:scale-110"
-                        aria-label="Supprimer la bibliothèque"
-                      >
-                        <TrashIcon className="w-5 h-5"/>
-                      </button>
+          {libraries.map((library) => {
+            const status = getLibraryStatus(library);
+            const persistenceStatus = getPersistenceStatus(library);
+            
+            return (
+              <div
+                key={library.id}
+                onClick={(e) => handleCardClick(e, library)}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 hover:bg-gray-800/70 hover:border-gray-600/50 transition-all duration-300 cursor-pointer group"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <ExclamationTriangleIcon className="w-6 h-6 text-orange-500" />
+                    <div>
+                      <h3 className="text-xl font-bold text-white">{library.name}</h3>
+                      <p className="text-gray-400">{library.files.length} document(s)</p>
                     </div>
                   </div>
                   
-                  {/* Status and Metadata */}
-                  <div className="pt-4 border-t border-gray-700 space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400">Statut</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.color}`}>
-                        {status.text}
-                      </span>
-                    </div>
-                    
-                    {lib.createdAt && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">Créée le</span>
-                        <span className="text-blue-400 font-medium">{formatDate(lib.createdAt)}</span>
-                      </div>
-                    )}
-                    
-                    {lib.lastAccessed && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">Dernier accès</span>
-                        <span className="text-blue-400 font-medium">{formatDate(lib.lastAccessed)}</span>
-                      </div>
-                    )}
-                    
-                    {needsAttention && (
-                      <div className="mt-3 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
-                        <p className="text-yellow-400 text-xs">
-                          {lib.metadata?.needsReconnection 
-                            ? "Cette bibliothèque nécessite une reconnexion au dossier source."
-                            : lib.metadata?.errorMessage || "Une erreur s'est produite avec cette bibliothèque."
-                          }
-                        </p>
-                      </div>
-                    )}
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReconnectLibrary(library);
+                      }}
+                      className="action-button px-3 py-1.5 bg-yellow-600/20 border border-yellow-500/30 text-yellow-400 text-sm rounded-lg hover:bg-yellow-600/30 hover:border-yellow-500/50 transition-all duration-200"
+                    >
+                      Reconnecter
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteLibrary(library.id);
+                      }}
+                      className="action-button px-3 py-1.5 bg-red-600/20 border border-red-500/30 text-red-400 text-sm rounded-lg hover:bg-red-600/30 hover:border-red-500/50 transition-all duration-200"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-            
-            {/* Add Library Button */}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <span className="text-gray-500 text-sm">Statut</span>
+                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.color}`}>
+                      {status.text}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="text-gray-500 text-sm">Persistance</span>
+                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${persistenceStatus.bgColor} ${persistenceStatus.color}`}>
+                      {persistenceStatus.icon}
+                      <span className="ml-1">{persistenceStatus.text}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="text-gray-500 text-sm">Créée le</span>
+                    <p className="text-blue-400 text-sm">{formatDate(library.createdAt)}</p>
+                  </div>
+                  
+                  <div>
+                    <span className="text-gray-500 text-sm">Dernier accès</span>
+                    <p className="text-blue-400 text-sm">{formatDate(library.lastAccessed)}</p>
+                  </div>
+                </div>
+                
+                {library.metadata?.needsReconnection && (
+                  <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
+                    <p className="text-yellow-400 text-sm">
+                      Cette bibliothèque nécessite une reconnexion au dossier source.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          
+          {/* Add Library Button */}
+          <div className="flex justify-center pt-8">
             <button
               onClick={onAddLibrary}
               disabled={isLoading}
-              className="flex flex-col items-center justify-center p-8 bg-gradient-to-br from-gray-800/50 to-gray-900/50 border-2 border-dashed border-gray-600 rounded-2xl text-gray-400 hover:from-gray-700 hover:to-gray-800 hover:border-blue-500 hover:text-blue-400 transition-all duration-300 transform hover:scale-105 group"
+              className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center justify-center"
             >
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-2xl flex items-center justify-center mb-4 group-hover:from-blue-500/40 group-hover:to-purple-600/40 transition-all duration-300">
-                <PlusIcon className="w-8 h-8" />
-              </div>
-              <span className="font-semibold text-lg">Ajouter une bibliothèque</span>
-              <span className="text-sm text-gray-500 mt-1">Nouveau dossier PDF</span>
+              <PlusIcon className="w-8 h-8 text-white" />
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppView, Library, LibraryFile } from './types';
-import { saveLibrary, getLibraries, deleteLibrary as dbDeleteLibrary, checkDatabaseHealth, forceRecreateDatabase } from './services/db';
+import { saveLibrary, getLibraries, deleteLibrary as dbDeleteLibrary, checkDatabaseHealth, forceRecreateDatabase, checkPersistenceHealth } from './services/db';
 import { fileHandleManager } from './services/fileHandleManager';
 import WelcomeScreen from './components/WelcomeScreen';
 import LibraryListScreen from './components/LibraryListScreen';
@@ -18,13 +18,33 @@ const App: React.FC = () => {
   
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [fileForAi, setFileForAi] = useState<LibraryFile | null>(null);
+  const [persistenceHealth, setPersistenceHealth] = useState<{ healthy: boolean; issues: string[] }>({ healthy: false, issues: [] });
+
+  const checkPersistence = useCallback(() => {
+    try {
+      const health = checkPersistenceHealth();
+      setPersistenceHealth(health);
+      
+      if (health.healthy) {
+        console.log('Persistence health check passed');
+      } else {
+        console.warn('Persistence health check failed:', health.issues);
+      }
+    } catch (error) {
+      console.error('Failed to check persistence health:', error);
+      setPersistenceHealth({ healthy: false, issues: ['Failed to check persistence'] });
+    }
+  }, []);
 
   const loadLibraries = useCallback(async () => {
     setIsLoading(true);
     setLoadingMessage('Chargement des bibliothèques...');
     
     try {
-      // Check database health first
+      // Check persistence health first
+      checkPersistence();
+      
+      // Check database health
       const dbHealthy = await checkDatabaseHealth();
       if (!dbHealthy) {
         console.warn('Database health check failed, attempting to recreate...');
@@ -112,7 +132,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkPersistence]);
 
   useEffect(() => {
     loadLibraries();
@@ -131,6 +151,9 @@ const App: React.FC = () => {
         setLibraries(prev => [...prev, newLibrary]);
         setSelectedLibrary(newLibrary);
         setCurrentView(AppView.LibraryView);
+        
+        // Re-check persistence after adding library
+        checkPersistence();
       }
     } catch (error) {
       console.error("Erreur lors de l'ajout de la bibliothèque :", error);
@@ -159,6 +182,9 @@ const App: React.FC = () => {
           setSelectedLibrary(reconnectedLibrary);
         }
         
+        // Re-check persistence after reconnecting
+        checkPersistence();
+        
         // Show success message
         alert(`Bibliothèque "${library.name}" reconnectée avec succès !`);
       }
@@ -182,6 +208,9 @@ const App: React.FC = () => {
           setSelectedLibrary(null);
           setCurrentView(AppView.LibraryList);
         }
+        
+        // Re-check persistence after deleting
+        checkPersistence();
       } catch (error) {
         console.error("Erreur lors de la suppression:", error);
         alert("Impossible de supprimer la bibliothèque.");
@@ -203,6 +232,9 @@ const App: React.FC = () => {
         setLibraries([]);
         setSelectedLibrary(null);
         setCurrentView(AppView.LibraryList);
+        
+        // Re-check persistence after reset
+        checkPersistence();
         
         // Show success message
         alert('Base de données réinitialisée avec succès. Vous pouvez maintenant recréer vos bibliothèques.');
@@ -244,18 +276,18 @@ const App: React.FC = () => {
       case AppView.Welcome:
         return <WelcomeScreen onContinue={handleWelcomeContinue} />;
       
-              case AppView.LibraryList:
-          return (
-            <LibraryListScreen
-              libraries={libraries}
-              onAddLibrary={handleAddLibrary}
-              onSelectLibrary={(lib) => { setSelectedLibrary(lib); setCurrentView(AppView.LibraryView); }}
-              onDeleteLibrary={handleDeleteLibrary}
-              onReconnectLibrary={handleReconnectLibrary}
-              onResetDatabase={handleResetDatabase}
-              isLoading={isLoading}
-            />
-          );
+      case AppView.LibraryList:
+        return (
+          <LibraryListScreen
+            libraries={libraries}
+            onAddLibrary={handleAddLibrary}
+            onSelectLibrary={(lib) => { setSelectedLibrary(lib); setCurrentView(AppView.LibraryView); }}
+            onDeleteLibrary={handleDeleteLibrary}
+            onReconnectLibrary={handleReconnectLibrary}
+            onResetDatabase={handleResetDatabase}
+            isLoading={isLoading}
+          />
+        );
       
       case AppView.LibraryView:
         if (!selectedLibrary) {
