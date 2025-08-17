@@ -24,6 +24,10 @@ export interface Library {
     hasErrors?: boolean;
     errorMessage?: string;
     lastReconnected?: string;
+    lastConnected?: string;
+    lastRestored?: string;
+    lastAttemptedRestore?: string;
+    lastError?: string;
   };
 }
 

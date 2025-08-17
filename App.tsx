@@ -55,7 +55,8 @@ const App: React.FC = () => {
               ...lib,
               metadata: {
                 ...lib.metadata,
-                needsReconnection: true
+                needsReconnection: true,
+                lastAttemptedRestore: new Date().toISOString()
               }
             });
           }
@@ -67,7 +68,8 @@ const App: React.FC = () => {
             metadata: {
               ...lib.metadata,
               hasErrors: true,
-              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+              errorMessage: error instanceof Error ? error.message : 'Unknown error',
+              lastError: new Date().toISOString()
             }
           });
         }
@@ -145,30 +147,20 @@ const App: React.FC = () => {
       setIsLoading(true);
       setLoadingMessage('Reconnexion de la bibliothèque...');
       
-      const reconnectedLibrary = await fileHandleManager.createLibraryFromDirectory();
+      const reconnectedLibrary = await fileHandleManager.reconnectLibrary(library);
       
       if (reconnectedLibrary) {
-        // Update the existing library with new handles
-        const updatedLibrary = {
-          ...library,
-          files: reconnectedLibrary.files,
-          directoryHandle: reconnectedLibrary.directoryHandle,
-          metadata: {
-            ...library.metadata,
-            needsReconnection: false,
-            hasErrors: false,
-            lastReconnected: new Date().toISOString()
-          }
-        };
-        
-        await saveLibrary(updatedLibrary);
+        await saveLibrary(reconnectedLibrary);
         setLibraries(prev => prev.map(lib => 
-          lib.id === library.id ? updatedLibrary : lib
+          lib.id === library.id ? reconnectedLibrary : lib
         ));
         
         if (selectedLibrary?.id === library.id) {
-          setSelectedLibrary(updatedLibrary);
+          setSelectedLibrary(reconnectedLibrary);
         }
+        
+        // Show success message
+        alert(`Bibliothèque "${library.name}" reconnectée avec succès !`);
       }
     } catch (error) {
       console.error("Erreur lors de la reconnexion:", error);
