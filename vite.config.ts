@@ -5,7 +5,9 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   define: {
-    'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || ''),
+    'process.env.GEMINI_API_KEY': JSON.stringify(
+      typeof process !== 'undefined' ? process.env.GEMINI_API_KEY || '' : ''
+    ),
   },
   server: {
     port: 3000,

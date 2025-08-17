@@ -1,7 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const API_KEY = process.env.GEMINI_API_KEY;
+// Safely access environment variables
+const API_KEY = typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined;
 
 if (!API_KEY) {
   console.warn("La clé API Gemini n'est pas configurée. Les fonctionnalités IA seront désactivées.");
